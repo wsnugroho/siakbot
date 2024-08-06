@@ -1,14 +1,23 @@
+import path from "path";
+import { readFileSync } from "fs";
 import { chromium, type Locator } from "playwright";
 
-const { username, password, subjects } = {
-  username: "wisnu.nugroho31",
-  password: "3MacjER4D$u2Qm88aPi#",
-  subjects: ["Teknik Kompilator", "Aljabar Linier - B", "SDA - B"],
+type Credentials = {
+  username: string;
+  password: string;
+  subjects: string[];
 };
 
 // Initial configuration
 const browser = await chromium.launch({ headless: false });
 const page = await browser.newPage();
+
+const { username, password, subjects }: Credentials = JSON.parse(
+  readFileSync(
+    path.join(import.meta.dirname, "credentials.json"),
+    "utf-8",
+  ).toString(),
+);
 
 const URLS = {
   LOGIN: "https://academic.ui.ac.id/main/Authentication/Index",
@@ -32,14 +41,12 @@ async function urlNavigation(
 
 async function buttonNavigation(
   button: Locator,
-  urlWaitFor: string,
+  urlDest: string,
   elementWaitFor: Locator,
 ): Promise<void> {
   await button.click();
   // Remove annoying trailing slash
-  await page.waitForURL(
-    (url) => url.toString().replace(/\/$/, "") === urlWaitFor,
-  );
+  await page.waitForURL((url) => url.toString().replace(/\/$/, "") === urlDest);
   while (true) {
     await page.goto(page.url());
     if (await elementWaitFor.isVisible()) {
