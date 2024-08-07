@@ -1,0 +1,3 @@
+- /Authentication/Index -> stuck klo koneksi jelek
+- consider no wait after untuk button navigation
+- set navigation timout to infinity
