@@ -1,10 +1,27 @@
+import path from "path";
+import { parseArgs } from "util";
+import { readFileSync } from "fs";
 import { chromium } from "playwright";
 
-const { username, password, subjects } = {
-  username: "wisnu.nugroho31",
-  password: "3MacjER4D$u2Qm88aPi#",
-  subjects: ["Aljabar Linear - B"],
-};
+type Credentials = {
+  username: string;
+  password: string;
+  subjects: string[];
+}
+
+const { username, password, subjects }: Credentials = JSON.parse(
+  readFileSync(path.join(import.meta.dirname, "credentials.json")).toString()
+);
+
+const args = parseArgs({
+  options: {
+    headless: {
+      short: "d",
+      type: "boolean",
+      default: false,
+    }
+  }
+})
 
 const URLS = {
   LOGIN: "https://academic.ui.ac.id/main/Authentication/Index",
@@ -15,9 +32,10 @@ const URLS = {
 };
 
 // Initial configuration
-const browser = await chromium.launch({ headless: false });
+const browser = await chromium.launch({ headless: args.values.headless });
 const page = await browser.newPage();
 
+page.setDefaultTimeout(300000); // maks 5 menit
 page.setDefaultNavigationTimeout(300000); // maks 5 menit
 
 function getCurrentURL() {
