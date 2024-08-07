@@ -1,23 +1,10 @@
-import path from "path";
-import { readFileSync } from "fs";
-import { chromium, type Locator } from "playwright";
+import { chromium } from "playwright";
 
-type Credentials = {
-  username: string;
-  password: string;
-  subjects: string[];
+const { username, password, subjects } = {
+  username: "wisnu.nugroho31",
+  password: "3MacjER4D$u2Qm88aPi#",
+  subjects: ["Aljabar Linear - B"],
 };
-
-// Initial configuration
-const browser = await chromium.launch({ headless: false });
-const page = await browser.newPage();
-
-const { username, password, subjects }: Credentials = JSON.parse(
-  readFileSync(
-    path.join(import.meta.dirname, "credentials.json"),
-    "utf-8",
-  ).toString(),
-);
 
 const URLS = {
   LOGIN: "https://academic.ui.ac.id/main/Authentication/Index",
@@ -27,106 +14,98 @@ const URLS = {
   SUMMARY: "https://academic.ui.ac.id/main/CoursePlan/CoursePlanViewSummary",
 };
 
-async function urlNavigation(
-  url: string,
-  elementWaitFor: Locator,
-): Promise<void> {
-  while (true) {
-    await page.goto(url);
-    if (await elementWaitFor.isVisible()) {
-      break;
-    }
-  }
+// Initial configuration
+const browser = await chromium.launch({ headless: false });
+const page = await browser.newPage();
+
+page.setDefaultNavigationTimeout(300000); // maks 5 menit
+
+function getCurrentURL() {
+  return page.url().replace(/\/$/, "");
 }
 
-async function buttonNavigation(
-  button: Locator,
-  urlDest: string,
-  elementWaitFor: Locator,
-): Promise<void> {
-  await button.click();
-  // Remove annoying trailing slash
-  await page.waitForURL((url) => url.toString().replace(/\/$/, "") === urlDest);
-  while (true) {
-    await page.goto(page.url());
-    if (await elementWaitFor.isVisible()) {
-      break;
-    }
-  }
-}
-
-main: while (true) {
-  // Login Page
-  await urlNavigation(
-    URLS.LOGIN,
-    page.getByRole("heading", { name: "Sistem Informasi Akademik" }),
-  );
-
-  // Login to with user credentials and wait for main page
+async function login() {
   await page.locator("input[name=u]").fill(username);
   await page.locator("input[name=p]").fill(password);
-  await buttonNavigation(
-    page.getByRole("button", { name: "Login" }),
-    URLS.HOME,
-    page.getByRole("heading", { name: "Selamat Datang" }),
-  );
+  await page.getByRole("button", { name: "Login" }).click();
+}
 
-  // const isMahasiswa = await page.getByText('guest').isHidden()
-  // if (!isMahasiswa) {
-  //   console.log("guest")
-  //   await urlNavigation(
-  //     URLS.LOGOUT,
-  //     page.getByRole("heading", { name: "Sistem Informasi Akademik" })
-  //   );
-  //   continue;
-  // }
+async function logout() {
+  await page.goto(URLS.LOGOUT);
+}
 
-  war: while (true) {
-    // War Page
-    await urlNavigation(
-      URLS.EDIT,
-      page.getByRole("heading", {
-        name: /(Pengisian|Penambahan) IRS/i,
-      }),
-    );
+async function war() {
+  for (const subject of subjects) {
+    const checkbox = page.getByLabel(subject);
+    if (await checkbox.isVisible()) {
+      await checkbox.check();
+      console.log(`"${subject}" dipilih`);
+    }
+  }
+  await page.getByRole("button", { name: "Simpan IRS" }).click();
+}
 
-    // Logout when IRS isn't ready to be filled
-    const isIRSReady = await page
-      .getByRole("heading", { name: "Anda tidak dapat mengisi IRS" })
-      .isHidden();
-    if (!isIRSReady) {
-      console.log("Logging Out");
-      await urlNavigation(
-        URLS.LOGOUT,
-        page.getByRole("heading", { name: "Sistem Informasi Akademik" }),
-      );
-      continue main;
+await page.goto(URLS.LOGIN);
+while (true) {
+  while (
+    (await page
+      // .getByText('Magister Kriminologi')
+      .getByRole("heading", { name: "Sistem Informasi Akademik" })
+      .isHidden()) &&
+    (await page
+      // .getByText('Wisnu Nugroho')
+      .getByRole("heading", { name: "SIAKNG" })
+      .isHidden())
+  ) {
+    console.log("refresh page error");
+    await page.reload();
+  }
+  if (
+    await page
+      .getByRole("heading", { name: "Sistem Informasi Akademik" })
+      .isVisible()
+  ) {
+    console.log("saatnya login");
+    await login();
+    continue;
+  }
+  if (getCurrentURL() === URLS.HOME) {
+    await page.goto(URLS.EDIT);
+    continue;
+  }
+  if (getCurrentURL() === URLS.EDIT) {
+    if (
+      await page
+        .getByRole("heading", { name: "Anda tidak dapat mengisi IRS" })
+        .isVisible()
+    ) {
+      console.log("Belum bisa ngisi!!!, war belum mulai");
+      await logout();
+      continue;
+    }
+    console.log("Di war page");
+    if (
+      await page.getByRole("heading", { name: "Penambahan IRS" }).isHidden()
+    ) {
+      console.log("Belum bisa ngisi!!!");
+      continue;
+    }
+    console.log("Saatnya warkan!!!");
+    await war();
+    if (
+      subjects.every(
+        async (subject) => await page.getByText(subject).isVisible(),
+      )
+    ) {
+      console.log("ngulang ngisi cuy");
+      await page.goto(URLS.EDIT);
+      continue;
     }
 
-    // Check all user subject choices and wait for the result page
-    for (const subject of subjects) {
-      const checkbox = page.getByLabel(subject);
-      if (await checkbox.isVisible()) {
-        await checkbox.check();
-        console.log(`"${subject}" selected`);
-      }
-    }
-    await buttonNavigation(
-      page.getByRole("button", { name: "Simpan IRS" }),
-      URLS.SUMMARY,
-      page.getByRole("heading", { name: "Ringkasan IRS" }),
-    );
-
-    // Check if all matkul successfully saved
-    const isSavedSuccessfully = subjects.every(
-      async (subject) => await page.getByText(subject).isVisible(),
-    );
-    if (isSavedSuccessfully) {
-      break main;
-    }
+    console.log("Sukses mantap!!");
+    break;
   }
 }
 
-// WAR Success
-console.log("Success Bruh, Gacor");
-browser.close();
+await page.close()
+await browser.close()
