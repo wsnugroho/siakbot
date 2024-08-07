@@ -111,7 +111,7 @@ while (true) {
     console.log("Saatnya warkan!!!");
     await war();
     if (
-      subjects.every(
+      !subjects.every(
         async (subject) => await page.getByText(subject).isVisible(),
       )
     ) {
